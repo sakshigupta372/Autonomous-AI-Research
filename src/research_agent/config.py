@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     research_agent_model: str = "llama-3.3-70b-versatile"
     research_agent_max_papers: int = 3
+    research_agent_critic_threshold: float = 7.0
+    research_agent_max_reflection_rounds: int = 2
+    research_agent_sandbox_timeout: int = 30
+    research_agent_enable_experiments: bool = True
 
     @property
     def data_dir(self) -> Path:
@@ -40,6 +44,18 @@ class Settings(BaseSettings):
     @property
     def outputs_dir(self) -> Path:
         path = PROJECT_ROOT / "outputs" / "summaries"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def sessions_dir(self) -> Path:
+        path = self.data_dir / "sessions"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def sandbox_dir(self) -> Path:
+        path = self.data_dir / "sandbox"
         path.mkdir(parents=True, exist_ok=True)
         return path
 

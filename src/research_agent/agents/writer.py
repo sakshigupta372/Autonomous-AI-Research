@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from research_agent.config import settings
 from research_agent.models.paper import Chunk, Paper
+from research_agent.models.reproduction import ReproducibilityResult
 from research_agent.models.summary import ResearchSummary
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
@@ -38,6 +39,7 @@ Write:
 - results: key quantitative/qualitative results
 - limitations: limitations or open problems, explicit or reasonably inferred
 - future_work: suggested next steps or open questions
+{revision_block}
 """
 
 
@@ -69,15 +71,26 @@ def run(state: ResearchState) -> ResearchState:
     llm = ChatGroq(model=settings.research_agent_model, api_key=settings.groq_api_key, temperature=0)
     structured_llm = llm.with_structured_output(SummaryDraft)
 
-    summaries: list[ResearchSummary] = []
+    is_revision = bool(state.get("critic_feedback")) and state.get("reflection_round", 0) > 0
+    summaries_by_id = {s.paper_id: s for s in state.get("summaries", [])}
+
     for paper in state["papers"]:
+        if is_revision and paper.arxiv_id not in state.get("critic_feedback", {}):
+            continue
+
         text = _paper_text(paper.arxiv_id, state["chunks"]) or paper.abstract
+        feedback = state.get("critic_feedback", {}).get(paper.arxiv_id, "")
+        revision_block = ""
+        if feedback:
+            revision_block = f"\n\nRevision feedback from critic (address these gaps):\n{feedback}"
+
         prompt = WRITER_PROMPT.format(
             title=paper.title,
             authors=", ".join(paper.authors),
             abstract=paper.abstract,
             graph_summary=_graph_summary(state["knowledge_graph"], paper.arxiv_id),
             text=text,
+            revision_block=revision_block,
         )
         try:
             draft = structured_llm.invoke(prompt)
@@ -85,19 +98,17 @@ def run(state: ResearchState) -> ResearchState:
             state["errors"].append(f"Writer failed on {paper.arxiv_id}: {e}")
             continue
 
-        summaries.append(
-            ResearchSummary(
-                paper_id=paper.arxiv_id,
-                title=paper.title,
-                contributions=draft.contributions,
-                methodology=draft.methodology,
-                results=draft.results,
-                limitations=draft.limitations,
-                future_work=draft.future_work,
-            )
+        summaries_by_id[paper.arxiv_id] = ResearchSummary(
+            paper_id=paper.arxiv_id,
+            title=paper.title,
+            contributions=draft.contributions,
+            methodology=draft.methodology,
+            results=draft.results,
+            limitations=draft.limitations,
+            future_work=draft.future_work,
         )
 
-    state["summaries"] = summaries
+    state["summaries"] = list(summaries_by_id.values())
     return state
 
 
@@ -105,7 +116,12 @@ def _bullets(items: list[str]) -> list[str]:
     return [f"- {item}" for item in items] if items else ["- (none extracted)"]
 
 
-def render_markdown(paper: Paper, summary: ResearchSummary, graph: nx.MultiDiGraph) -> str:
+def render_markdown(
+    paper: Paper,
+    summary: ResearchSummary,
+    graph: nx.MultiDiGraph,
+    reproduction: ReproducibilityResult | None = None,
+) -> str:
     """Render a ResearchSummary as a Markdown report with a Mermaid concept graph."""
     mermaid = graph_builder.to_mermaid(graph, paper.arxiv_id)
     lines = [
@@ -140,11 +156,42 @@ def render_markdown(paper: Paper, summary: ResearchSummary, graph: nx.MultiDiGra
         "",
         *_bullets(summary.future_work),
         "",
-        "## Concept Graph",
-        "",
-        "```mermaid",
-        mermaid,
-        "```",
-        "",
     ]
+
+    if reproduction is not None:
+        lines.extend(
+            [
+                "## Reproducibility",
+                "",
+                f"- **Score:** {reproduction.reproducibility_score:.0%}",
+                f"- **Execution success:** {reproduction.success}",
+                f"- **Paper-reported metrics:** {', '.join(reproduction.paper_reported_metrics) or '(none)'}",
+                f"- **Reproduced metrics:** {', '.join(reproduction.reproduced_metrics) or '(none)'}",
+                f"- **Notes:** {reproduction.notes or '(none)'}",
+                "",
+                "### Generated Script",
+                "",
+                "```python",
+                reproduction.script or "# (no script generated)",
+                "```",
+                "",
+                "### Sandbox Output",
+                "",
+                "```",
+                reproduction.stdout or "(no stdout)",
+                "```",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "## Concept Graph",
+            "",
+            "```mermaid",
+            mermaid,
+            "```",
+            "",
+        ]
+    )
     return "\n".join(lines)

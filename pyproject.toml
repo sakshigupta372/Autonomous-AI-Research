@@ -1,7 +1,7 @@
 [project]
 name = "research-agent"
-version = "0.1.0"
-description = "Autonomous AI Research Scientist: multi-agent arXiv reader, GraphRAG builder, and summary writer."
+version = "0.2.0"
+description = "Autonomous AI Research Scientist: multi-agent arXiv reader, GraphRAG, comparison, reflection, and experiment reproduction."
 requires-python = ">=3.11"
 dependencies = [
     "langgraph>=0.2.0",
