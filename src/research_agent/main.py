@@ -107,9 +107,9 @@ def run(
         console.print("[dim]Experiments disabled (--no-experiments)[/dim]")
 
     console.print(
-        "[dim]Pipeline: Scout → Reader → Analyst → Writer → Critic → Comparator → "
-        f"{'(skip Experimenter) → ' if no_experiments else 'Experimenter → '}PersistMemory"
-        f"{' → GapPlanner ↺' if autonomous else ''}[/dim]\n"
+        "[dim]Pipeline: Scout -> Reader -> Analyst -> Writer -> Critic -> Comparator -> "
+        f"{'(skip Experimenter) -> ' if no_experiments else 'Experimenter -> '}PersistMemory"
+        f"{' -> GapPlanner (loop)' if autonomous else ''}[/dim]\n"
     )
 
     final_state = run_research(
