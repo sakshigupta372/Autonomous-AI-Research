@@ -16,6 +16,7 @@ from research_agent.models.paper import Chunk, Entity, PaperGraph, Relation
 from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
+from research_agent.tools.kg_state import as_dict, as_graph
 
 MAX_CONTEXT_CHARS = 12000
 
@@ -50,7 +51,7 @@ def run(state: ResearchState) -> ResearchState:
     llm = ChatGroq(model=settings.research_agent_model, api_key=settings.groq_api_key, temperature=0)
     structured_llm = llm.with_structured_output(ExtractionResult)
 
-    graph = state["knowledge_graph"]
+    graph = as_graph(state["knowledge_graph"])
     paper_graphs: list[PaperGraph] = []
 
     papers = state["papers"]
@@ -81,5 +82,5 @@ def run(state: ResearchState) -> ResearchState:
         progress.info(f"Extracted {len(result.entities)} entities, {len(result.relations)} relations")
 
     state["paper_graphs"] = paper_graphs
-    state["knowledge_graph"] = graph
+    state["knowledge_graph"] = as_dict(graph)
     return state

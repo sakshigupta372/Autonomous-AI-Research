@@ -14,6 +14,7 @@ from research_agent.config import settings
 from research_agent.memory import graph_store, vector_store
 from research_agent import progress
 from research_agent.state import ResearchState
+from research_agent.tools.kg_state import as_dict, as_graph
 
 
 def _route_after_critic(state: ResearchState) -> str:
@@ -30,7 +31,7 @@ def _route_after_scout(state: ResearchState) -> str:
     if state.get("papers"):
         return "reader"
     if state.get("autonomous_mode") and state.get("autonomous_iteration", 0) > 0:
-        progress.info("Autonomous loop ending — no new papers found")
+        progress.info("Autonomous loop ending - no new papers found")
         state["autonomous_complete"] = True
         return END
     return "reader"
@@ -69,7 +70,7 @@ def _step_summary(name: str, state: ResearchState) -> str:
     if name == "reader":
         return f"{len(state.get('chunks', []))} chunk(s)"
     if name == "analyst":
-        graph = state.get("knowledge_graph")
+        graph = as_graph(state.get("knowledge_graph"))
         nodes = graph.number_of_nodes() if graph is not None else 0
         return f"{nodes} graph node(s)"
     if name == "writer":
@@ -103,7 +104,7 @@ def _persist_memory(state: ResearchState) -> ResearchState:
     vector_store.add_chunks(collection, state["chunks"])
 
     progress.info("Saving knowledge graph and ingestion ledger...")
-    graph_store.save_graph(settings.graph_db_path, state["knowledge_graph"])
+    graph_store.save_graph(settings.graph_db_path, as_graph(state["knowledge_graph"]))
     for paper in state["papers"]:
         graph_store.mark_ingested(settings.graph_db_path, paper)
 
@@ -118,7 +119,7 @@ def _persist_memory(state: ResearchState) -> ResearchState:
         markdown = writer.render_markdown(
             paper,
             summary,
-            state["knowledge_graph"],
+            as_graph(state["knowledge_graph"]),
             reproduction=repro_by_id.get(summary.paper_id),
         )
         out_path = settings.outputs_dir / f"{paper.arxiv_id}.md"
@@ -211,7 +212,7 @@ def _initial_state(
         "papers": [],
         "chunks": [],
         "paper_graphs": [],
-        "knowledge_graph": graph_store.load_graph(settings.graph_db_path),
+        "knowledge_graph": as_dict(graph_store.load_graph(settings.graph_db_path)),
         "summaries": [],
         "critiques": [],
         "critic_feedback": {},

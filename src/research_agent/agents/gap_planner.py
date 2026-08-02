@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from research_agent.config import settings
 from research_agent import progress
 from research_agent.state import ResearchState
+from research_agent.tools.kg_state import as_graph
 
 
 GAP_PROMPT = """You are an autonomous research scientist planning the next literature search.
@@ -73,7 +74,7 @@ def run(state: ResearchState) -> ResearchState:
         iteration=state["autonomous_iteration"],
         previous_queries=state.get("search_queries") or [state["topic"]],
         open_questions="\n".join(f"- {q}" for q in open_questions) or "(none yet)",
-        graph_snapshot=_graph_snapshot(state["knowledge_graph"]),
+        graph_snapshot=_graph_snapshot(as_graph(state["knowledge_graph"])),
     )
 
     try:

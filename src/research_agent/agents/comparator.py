@@ -14,6 +14,7 @@ from research_agent.models.summary import ResearchSummary
 from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
+from research_agent.tools.kg_state import as_graph
 
 COMPARATOR_PROMPT = """You are comparing multiple academic papers on the same research topic.
 
@@ -46,15 +47,16 @@ def _entities_for_paper(graph: nx.MultiDiGraph, paper_id: str, entity_type: str)
 def _build_rows(state: ResearchState) -> list[PaperComparisonRow]:
     summaries_by_id = {s.paper_id: s for s in state["summaries"]}
     rows: list[PaperComparisonRow] = []
+    graph = as_graph(state["knowledge_graph"])
     for paper in state["papers"]:
         summary = summaries_by_id.get(paper.arxiv_id)
         rows.append(
             PaperComparisonRow(
                 paper_id=paper.arxiv_id,
                 title=paper.title,
-                methods=_entities_for_paper(state["knowledge_graph"], paper.arxiv_id, "Method"),
-                datasets=_entities_for_paper(state["knowledge_graph"], paper.arxiv_id, "Dataset"),
-                metrics=_entities_for_paper(state["knowledge_graph"], paper.arxiv_id, "Metric"),
+                methods=_entities_for_paper(graph, paper.arxiv_id, "Method"),
+                datasets=_entities_for_paper(graph, paper.arxiv_id, "Dataset"),
+                metrics=_entities_for_paper(graph, paper.arxiv_id, "Metric"),
                 key_limitations=summary.limitations if summary else [],
             )
         )
@@ -156,7 +158,7 @@ def _topic_slug(topic: str) -> str:
 
 def run(state: ResearchState) -> ResearchState:
     if len(state["papers"]) < 2:
-        progress.info("Only 1 paper — skipping cross-paper synthesis")
+        progress.info("Only 1 paper - skipping cross-paper synthesis")
         state["comparison"] = ComparisonReport(topic=state["topic"], rows=_build_rows(state))
         return state
 

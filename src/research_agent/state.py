@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
-
-import networkx as nx
+from typing import Any, TypedDict
 
 from research_agent.models.comparison import ComparisonReport
 from research_agent.models.critique import CritiqueResult
@@ -21,7 +19,7 @@ class ResearchState(TypedDict):
     papers: list[Paper]
     chunks: list[Chunk]
     paper_graphs: list[PaperGraph]
-    knowledge_graph: nx.MultiDiGraph
+    knowledge_graph: dict[str, Any]
     summaries: list[ResearchSummary]
     critiques: list[CritiqueResult]
     critic_feedback: dict[str, str]

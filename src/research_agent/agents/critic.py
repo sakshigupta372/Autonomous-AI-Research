@@ -85,7 +85,7 @@ def run(state: ResearchState) -> ResearchState:
 
         overall = round((draft.completeness + draft.grounding + draft.limitations_coverage) / 3, 2)
         needs_revision = overall < threshold
-        progress.info(f"Score {overall}/10 — {'needs revision' if needs_revision else 'passed'}")
+        progress.info(f"Score {overall}/10 - {'needs revision' if needs_revision else 'passed'}")
         critique = CritiqueResult(
             paper_id=summary.paper_id,
             completeness=draft.completeness,

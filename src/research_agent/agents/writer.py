@@ -15,6 +15,7 @@ from research_agent.models.summary import ResearchSummary
 from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
+from research_agent.tools.kg_state import as_graph
 
 MAX_CONTEXT_CHARS = 12000
 
@@ -92,7 +93,7 @@ def run(state: ResearchState) -> ResearchState:
             title=paper.title,
             authors=", ".join(paper.authors),
             abstract=paper.abstract,
-            graph_summary=_graph_summary(state["knowledge_graph"], paper.arxiv_id),
+            graph_summary=_graph_summary(as_graph(state["knowledge_graph"]), paper.arxiv_id),
             text=text,
             revision_block=revision_block,
         )
