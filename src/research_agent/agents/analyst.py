@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from research_agent.config import settings
 from research_agent.memory import graph_store
 from research_agent.models.paper import Chunk, Entity, PaperGraph, Relation
+from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
 
@@ -52,8 +53,10 @@ def run(state: ResearchState) -> ResearchState:
     graph = state["knowledge_graph"]
     paper_graphs: list[PaperGraph] = []
 
-    for paper in state["papers"]:
+    papers = state["papers"]
+    for index, paper in enumerate(papers, start=1):
         if graph_store.is_ingested(settings.graph_db_path, paper.arxiv_id):
+            progress.paper_step("Analyst", index, len(papers), paper.arxiv_id, "using cached graph (skipped LLM)")
             subgraph = graph_builder.subgraph_for_paper(graph, paper.arxiv_id)
             entities = [
                 Entity(name=data["name"], type=data["type"], description=data.get("description", ""))
@@ -62,17 +65,20 @@ def run(state: ResearchState) -> ResearchState:
             paper_graphs.append(PaperGraph(paper_id=paper.arxiv_id, entities=entities, relations=[]))
             continue
 
+        progress.paper_step("Analyst", index, len(papers), paper.arxiv_id, "extracting knowledge graph (Groq LLM)")
         text = _paper_text(paper.arxiv_id, state["chunks"]) or paper.abstract
 
         try:
             result = structured_llm.invoke(EXTRACTION_PROMPT.format(title=paper.title, text=text))
         except Exception as e:  # noqa: BLE001
             state["errors"].append(f"Analyst failed on {paper.arxiv_id}: {e}")
+            progress.warn(f"Extraction failed for {paper.arxiv_id}")
             continue
 
         paper_graph = PaperGraph(paper_id=paper.arxiv_id, entities=result.entities, relations=result.relations)
         paper_graphs.append(paper_graph)
         graph_builder.merge_paper_graph(graph, paper_graph)
+        progress.info(f"Extracted {len(result.entities)} entities, {len(result.relations)} relations")
 
     state["paper_graphs"] = paper_graphs
     state["knowledge_graph"] = graph

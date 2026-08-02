@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from research_agent.config import settings
 from research_agent.models.critique import CritiqueResult
 from research_agent.models.paper import Chunk
+from research_agent import progress
 from research_agent.state import ResearchState
 
 MAX_CONTEXT_CHARS = 8000
@@ -57,11 +58,13 @@ def run(state: ResearchState) -> ResearchState:
     feedback_map: dict[str, str] = {}
     threshold = settings.research_agent_critic_threshold
 
+    summaries = state["summaries"]
     papers_by_id = {p.arxiv_id: p for p in state["papers"]}
-    for summary in state["summaries"]:
+    for index, summary in enumerate(summaries, start=1):
         paper = papers_by_id.get(summary.paper_id)
         if paper is None:
             continue
+        progress.paper_step("Critic", index, len(summaries), summary.paper_id, "scoring summary (Groq LLM)")
         text = _paper_text(summary.paper_id, state["chunks"]) or paper.abstract
         prompt = CRITIC_PROMPT.format(
             title=summary.title,
@@ -77,10 +80,12 @@ def run(state: ResearchState) -> ResearchState:
             draft = structured_llm.invoke(prompt)
         except Exception as e:  # noqa: BLE001
             state["errors"].append(f"Critic failed on {summary.paper_id}: {e}")
+            progress.warn(f"Critique failed for {summary.paper_id}")
             continue
 
         overall = round((draft.completeness + draft.grounding + draft.limitations_coverage) / 3, 2)
         needs_revision = overall < threshold
+        progress.info(f"Score {overall}/10 — {'needs revision' if needs_revision else 'passed'}")
         critique = CritiqueResult(
             paper_id=summary.paper_id,
             completeness=draft.completeness,

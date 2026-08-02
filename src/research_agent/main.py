@@ -32,6 +32,12 @@ def run(
         raise typer.Exit(code=1)
 
     console.print(f"[bold]Researching:[/bold] {topic} (max {max_papers} papers)")
+    if no_experiments:
+        console.print("[dim]Experiments disabled (--no-experiments)[/dim]")
+    console.print(
+        "[dim]Pipeline: Scout → Reader → Analyst → Writer → Critic → Comparator → "
+        f"{'(skip Experimenter) → ' if no_experiments else 'Experimenter → '}PersistMemory[/dim]\n"
+    )
     final_state = run_research(topic, max_papers, enable_experiments=not no_experiments)
 
     table = Table(title="Papers Processed")

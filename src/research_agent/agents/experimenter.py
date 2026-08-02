@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from research_agent.config import settings
 from research_agent.models.paper import Chunk
 from research_agent.models.reproduction import ReproducibilityResult
+from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools.sandbox import run_python_script
 
@@ -74,6 +75,7 @@ def _score_reproduction(reported: list[str], reproduced: list[str], success: boo
 
 def run(state: ResearchState) -> ResearchState:
     if not state.get("enable_experiments", True):
+        progress.info("Experiment reproduction skipped")
         state["reproductions"] = []
         return state
 
@@ -82,8 +84,10 @@ def run(state: ResearchState) -> ResearchState:
 
     summaries_by_id = {s.paper_id: s for s in state["summaries"]}
     results: list[ReproducibilityResult] = []
+    papers = state["papers"]
 
-    for paper in state["papers"]:
+    for index, paper in enumerate(papers, start=1):
+        progress.paper_step("Experimenter", index, len(papers), paper.arxiv_id, "generating script (Groq LLM)")
         summary = summaries_by_id.get(paper.arxiv_id)
         text = _methods_text(paper.arxiv_id, state["chunks"]) or paper.abstract
         prompt = EXPERIMENTER_PROMPT.format(
@@ -97,6 +101,7 @@ def run(state: ResearchState) -> ResearchState:
             if script.startswith("```"):
                 script = re.sub(r"^```(?:python)?\n?", "", script)
                 script = re.sub(r"\n?```$", "", script)
+            progress.info(f"Running sandbox (timeout {settings.research_agent_sandbox_timeout}s)...")
             sandbox = run_python_script(
                 script,
                 timeout=settings.research_agent_sandbox_timeout,
@@ -105,6 +110,7 @@ def run(state: ResearchState) -> ResearchState:
             reproduced = _extract_metrics_from_output(sandbox.stdout)
             reported = draft.paper_reported_metrics or (summary.results if summary else [])
             score = _score_reproduction(reported, reproduced, sandbox.success)
+            progress.info(f"Reproducibility score: {score:.0%} (success={sandbox.success})")
             results.append(
                 ReproducibilityResult(
                     paper_id=paper.arxiv_id,
@@ -122,6 +128,7 @@ def run(state: ResearchState) -> ResearchState:
             )
         except Exception as e:  # noqa: BLE001
             state["errors"].append(f"Experimenter failed on {paper.arxiv_id}: {e}")
+            progress.warn(f"Reproduction failed for {paper.arxiv_id}")
             results.append(
                 ReproducibilityResult(
                     paper_id=paper.arxiv_id,

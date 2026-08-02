@@ -12,6 +12,7 @@ from research_agent.config import settings
 from research_agent.models.paper import Chunk, Paper
 from research_agent.models.reproduction import ReproducibilityResult
 from research_agent.models.summary import ResearchSummary
+from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
 
@@ -74,10 +75,13 @@ def run(state: ResearchState) -> ResearchState:
     is_revision = bool(state.get("critic_feedback")) and state.get("reflection_round", 0) > 0
     summaries_by_id = {s.paper_id: s for s in state.get("summaries", [])}
 
-    for paper in state["papers"]:
+    papers = state["papers"]
+    for index, paper in enumerate(papers, start=1):
         if is_revision and paper.arxiv_id not in state.get("critic_feedback", {}):
             continue
 
+        action = "revising summary (Groq LLM)" if is_revision else "writing summary (Groq LLM)"
+        progress.paper_step("Writer", index, len(papers), paper.arxiv_id, action)
         text = _paper_text(paper.arxiv_id, state["chunks"]) or paper.abstract
         feedback = state.get("critic_feedback", {}).get(paper.arxiv_id, "")
         revision_block = ""
@@ -96,6 +100,7 @@ def run(state: ResearchState) -> ResearchState:
             draft = structured_llm.invoke(prompt)
         except Exception as e:  # noqa: BLE001
             state["errors"].append(f"Writer failed on {paper.arxiv_id}: {e}")
+            progress.warn(f"Summary failed for {paper.arxiv_id}")
             continue
 
         summaries_by_id[paper.arxiv_id] = ResearchSummary(

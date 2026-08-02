@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from research_agent.config import settings
 from research_agent.models.comparison import ComparisonReport, PaperComparisonRow
 from research_agent.models.summary import ResearchSummary
+from research_agent import progress
 from research_agent.state import ResearchState
 from research_agent.tools import graph_builder
 
@@ -155,9 +156,11 @@ def _topic_slug(topic: str) -> str:
 
 def run(state: ResearchState) -> ResearchState:
     if len(state["papers"]) < 2:
+        progress.info("Only 1 paper — skipping cross-paper synthesis")
         state["comparison"] = ComparisonReport(topic=state["topic"], rows=_build_rows(state))
         return state
 
+    progress.info("Building comparison table from knowledge graph...")
     rows = _build_rows(state)
     report = ComparisonReport(
         topic=state["topic"],
@@ -166,6 +169,7 @@ def run(state: ResearchState) -> ResearchState:
         shared_datasets=_shared_across_papers(rows, "datasets"),
     )
 
+    progress.info("Writing cross-paper synthesis (Groq LLM)...")
     llm = ChatGroq(model=settings.research_agent_model, api_key=settings.groq_api_key, temperature=0)
     structured_llm = llm.with_structured_output(ComparatorDraft)
     prompt = COMPARATOR_PROMPT.format(
@@ -180,6 +184,7 @@ def run(state: ResearchState) -> ResearchState:
         report.contradictions = draft.contradictions
     except Exception as e:  # noqa: BLE001
         state["errors"].append(f"Comparator synthesis failed: {e}")
+        progress.warn("Cross-paper synthesis failed")
 
     state["comparison"] = report
     return state
