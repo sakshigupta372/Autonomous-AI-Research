@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from research_agent.config import settings
+from research_agent.memory import graph_store
 from research_agent.models.paper import Paper
 from research_agent import progress
 from research_agent.state import ResearchState
@@ -13,12 +14,21 @@ def run(state: ResearchState) -> ResearchState:
     papers: list[Paper] = []
 
     progress.info(f"Searching arXiv for: {state['topic']}")
+    search_limit = state["max_papers"] * 3 if state.get("autonomous_mode") else state["max_papers"]
     try:
-        results = arxiv_client.search(state["topic"], state["max_papers"])
-    except Exception as e:  # noqa: BLE001 - surface all search failures as state errors
+        results = arxiv_client.search(state["topic"], search_limit)
+    except Exception as e:  # noqa: BLE001
         state["errors"].append(f"Scout search failed: {e}")
         state["papers"] = papers
         return state
+
+    if state.get("autonomous_mode"):
+        results = [r for r in results if not graph_store.is_ingested(settings.graph_db_path, r.get_short_id())]
+        results = results[: state["max_papers"]]
+        if not results:
+            progress.info("No new papers found (all already ingested or none matched)")
+        else:
+            progress.info(f"Found {len(results)} new paper(s) not yet ingested")
 
     total = len(results)
     for index, result in enumerate(results, start=1):

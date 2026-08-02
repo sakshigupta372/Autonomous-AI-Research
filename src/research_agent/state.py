@@ -15,7 +15,9 @@ from research_agent.models.summary import ResearchSummary
 
 class ResearchState(TypedDict):
     topic: str
+    original_topic: str
     max_papers: int
+    session_id: str
     papers: list[Paper]
     chunks: list[Chunk]
     paper_graphs: list[PaperGraph]
@@ -30,5 +32,12 @@ class ResearchState(TypedDict):
     reproductions: list[ReproducibilityResult]
     enable_experiments: bool
     pending_revision: bool
+    autonomous_mode: bool
+    autonomous_iteration: int
+    max_autonomous_iterations: int
+    autonomous_complete: bool
+    search_queries: list[str]
+    gap_queries: list[str]
     report_paths: list[str]
+    all_report_paths: list[str]
     errors: list[str]

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     research_agent_max_reflection_rounds: int = 2
     research_agent_sandbox_timeout: int = 30
     research_agent_enable_experiments: bool = True
+    research_agent_max_autonomous_iterations: int = 2
+    research_agent_web_host: str = "127.0.0.1"
+    research_agent_web_port: int = 8000
 
     @property
     def data_dir(self) -> Path:
@@ -57,6 +60,12 @@ class Settings(BaseSettings):
     def sandbox_dir(self) -> Path:
         path = self.data_dir / "sandbox"
         path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def checkpoint_db_path(self) -> Path:
+        path = self.data_dir / "checkpoints.db"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         return path
 
 
