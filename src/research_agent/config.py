@@ -1,0 +1,47 @@
+"""Settings loaded from environment variables / .env file."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="", env_file=str(PROJECT_ROOT / ".env"), extra="ignore")
+
+    groq_api_key: str = ""
+    research_agent_model: str = "llama-3.3-70b-versatile"
+    research_agent_max_papers: int = 3
+
+    @property
+    def data_dir(self) -> Path:
+        return PROJECT_ROOT / "data"
+
+    @property
+    def papers_dir(self) -> Path:
+        path = self.data_dir / "papers"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def chroma_dir(self) -> Path:
+        path = self.data_dir / "chroma"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def graph_db_path(self) -> Path:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        return self.data_dir / "graph.db"
+
+    @property
+    def outputs_dir(self) -> Path:
+        path = PROJECT_ROOT / "outputs" / "summaries"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+
+settings = Settings()
